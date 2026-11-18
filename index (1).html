@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SNLE Vitals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style id="app-css">
+:root{
+  --bg:#060d14; --bg2:#0b1621; --surface:#0f1e2b; --surface2:#132636; --ink:#e6f1f7; --muted:#7f97a8; --line:#1d3446; --soft:#16293a;
+  --accent:#3df5a1; --accent-ink:#03140c; --cyan:#3ad7ff; --gold:#ffcf4a; --pink:#ff5fa8;
+  --good:#3df5a1; --bad:#ff5a6e; --good-bg:rgba(61,245,161,.12); --bad-bg:rgba(255,90,110,.13);
+  --f-display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Arabic","Readex Pro",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,monospace;
+  /* layout: ICU bedside monitor. vitals-colored tiles, a live ECG trace, glowing panels on a grid */
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  background-image:linear-gradient(rgba(58,215,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(58,215,255,.045) 1px,transparent 1px),radial-gradient(1200px 600px at 80% -10%,rgba(61,245,161,.10),transparent 60%),radial-gradient(900px 500px at 0% 0%,rgba(58,215,255,.10),transparent 60%);
+  background-size:28px 28px,28px 28px,auto,auto;background-attachment:fixed}
+.wrap{max-width:900px;margin:0 auto;padding:18px 16px 56px;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3{font-family:var(--f-display);line-height:1.25;margin:0;text-wrap:balance}
+h1{font-size:1.65rem;letter-spacing:-.01em}
+h2{font-size:1.2rem}h3{font-size:1rem;color:var(--cyan)}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+.num{font-variant-numeric:tabular-nums;font-family:var(--f-mono)}
+.ltr{direction:ltr;text-align:left;unicode-bidi:isolate}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;flex-direction:column;gap:4px;position:relative;padding-inline-start:18px}
+.brand::before{content:"";position:absolute;inset-inline-start:0;top:8px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px rgba(61,245,161,.18),0 0 18px var(--accent);animation:beat 1.1s infinite}
+.brand h1{background:linear-gradient(90deg,var(--ink),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand .sub{color:var(--muted);font-size:.9rem}
+.monitor{position:relative;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,#07131c,#0a1a26);overflow:hidden;height:64px}
+.ecg{width:200%;height:64px;display:block;animation:sweep 5s linear infinite}
+.ecg path{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--accent))}
+.monitor .tag{position:absolute;top:6px;inset-inline-end:12px;font-family:var(--f-mono);font-size:.75rem;color:var(--accent);letter-spacing:.08em}
+.monitor .tag2{position:absolute;bottom:6px;inset-inline-end:12px;font-family:var(--f-mono);font-size:.75rem;color:var(--cyan)}
+@keyframes sweep{from{transform:translateX(-50%)}to{transform:translateX(0)}}
+@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.35)}30%{transform:scale(1)}}
+.vitals{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.vital{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:10px 14px;display:flex;flex-direction:column;gap:2px;border-top:3px solid var(--c,var(--accent))}
+.vital span{font-size:.78rem;color:var(--muted)}
+.vital b{font-family:var(--f-mono);font-size:1.6rem;color:var(--c,var(--accent));line-height:1.1;text-shadow:0 0 14px color-mix(in srgb,var(--c,var(--accent)) 45%,transparent)}
+.card{background:linear-gradient(180deg,var(--surface),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.btn{font:inherit;font-family:var(--f-display);font-weight:600;border:1px solid var(--line);background:var(--surface2);color:var(--ink);border-radius:12px;padding:10px 16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;transition:transform .12s,border-color .15s,box-shadow .15s}
+.btn:hover:not(:disabled){border-color:var(--cyan);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--cyan));color:var(--accent-ink);border-color:transparent;box-shadow:0 6px 22px rgba(61,245,161,.25)}
+.btn.primary:hover:not(:disabled){box-shadow:0 8px 28px rgba(58,215,255,.35)}
+.btn.danger{color:var(--bad);border-color:rgba(255,90,110,.5);background:transparent}
+.btn.ghost{background:transparent}
+.btn.sm{min-height:34px;padding:6px 12px;font-size:.86rem;border-radius:10px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.big{font-size:1.12rem;padding:15px 24px;width:100%}
+:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+.chip{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--bg2);color:var(--ink);border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:start;min-height:56px;transition:border-color .15s,background .15s}
+.chip:hover{border-color:var(--cyan)}
+.chip .n{font-family:var(--f-mono);font-size:.8rem;color:var(--cyan);background:rgba(58,215,255,.1);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.chip.on{border-color:var(--accent);background:rgba(61,245,161,.09);box-shadow:inset 0 0 0 1px var(--accent),0 0 18px rgba(61,245,161,.12)}
+.chip.on .n{color:var(--accent);background:rgba(61,245,161,.14)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;flex-wrap:wrap;background:var(--bg2)}
+.seg button{font:inherit;border:0;background:transparent;color:var(--ink);padding:8px 16px;cursor:pointer;min-height:42px;font-family:var(--f-mono)}
+.seg button+button{border-inline-start:1px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink);font-weight:700}
+label.fld{display:flex;flex-direction:column;gap:6px;font-weight:500}
+input[type=text],input[type=search],textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input:focus,textarea:focus,select:focus{border-color:var(--cyan);outline:none;box-shadow:0 0 0 3px rgba(58,215,255,.15)}
+textarea{min-height:90px;resize:vertical}
+.player{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.lvl{display:flex;flex-direction:column;gap:6px;flex:1;min-width:200px}
+.bar{height:8px;background:var(--soft);border-radius:99px;overflow:hidden}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:99px;transition:width .4s;box-shadow:0 0 10px rgba(61,245,161,.5)}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 11px;font-size:.8rem;font-weight:600;background:var(--soft);color:var(--ink);white-space:nowrap;border:1px solid var(--line)}
+.badge.gold{color:var(--gold);border-color:rgba(255,207,74,.35);background:rgba(255,207,74,.08)}
+.badge.good{background:var(--good-bg);color:var(--good);border-color:rgba(61,245,161,.35)}
+.badge.bad{background:var(--bad-bg);color:var(--bad);border-color:rgba(255,90,110,.35)}
+.hud{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.hud .stats{display:flex;gap:8px;flex-wrap:wrap}
+.hud .badge{font-family:var(--f-mono);font-size:.88rem;padding:5px 12px}
+.qtext{font-size:1.14rem;font-weight:500;line-height:1.6}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{font:inherit;text-align:left;direction:ltr;display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);background:var(--bg2);color:var(--ink);border-radius:12px;padding:12px 14px;cursor:pointer;min-height:54px;transition:border-color .15s,transform .12s,background .15s}
+.opt .k{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--soft);color:var(--cyan);font-family:var(--f-mono);font-weight:700;font-size:.9rem;border:1px solid var(--line)}
+.opt:hover:not(:disabled){border-color:var(--cyan);transform:translateX(3px)}
+.opt.sel{border-color:var(--cyan);background:rgba(58,215,255,.08)}
+.opt.sel .k{background:var(--cyan);color:var(--accent-ink)}
+.opt.correct{border-color:var(--good);background:var(--good-bg);box-shadow:0 0 18px rgba(61,245,161,.15)}
+.opt.correct .k{background:var(--good);color:var(--accent-ink);border-color:var(--good)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-bg)}
+.opt.wrong .k{background:var(--bad);color:#fff;border-color:var(--bad)}
+.opt:disabled{cursor:default}
+.exp{border-inline-start:4px solid var(--cyan);background:var(--soft);border-radius:12px;padding:12px 14px}
+.exp.bad{border-color:var(--bad)}
+.exp.good{border-color:var(--good)}
+.result-head{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.ring{--p:0;width:140px;height:140px;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--soft) 0);display:grid;place-items:center;flex:none;box-shadow:0 0 30px rgba(61,245,161,.18)}
+.ring>div{width:112px;height:112px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-family:var(--f-mono);font-size:1.8rem;font-weight:700;color:var(--accent)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;flex:1}
+.kv div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kv b{display:block;font-family:var(--f-mono);font-size:1.35rem;color:var(--cyan)}
+.catrow{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:10px;align-items:center}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--bg2)}
+.item .meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.scores{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.scores td,.scores th{padding:9px 6px;border-bottom:1px solid var(--line);text-align:start}
+.scores th{font-weight:600;color:var(--muted);font-size:.82rem}
+.scores tr:first-child td b{color:var(--gold)}
+.scores.wide td,.scores.wide th{white-space:nowrap}
+#pane{display:flex;flex-direction:column;gap:16px}
+.scores tr.me td{background:rgba(61,245,161,.07)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:6px}
+.tabs button{font:inherit;border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{background:var(--surface2);color:var(--accent);box-shadow:inset 0 0 0 1px var(--line)}
+.notice{border-radius:12px;padding:10px 14px;background:var(--soft);border-inline-start:4px solid var(--cyan)}
+.notice.warn{background:var(--bad-bg);border-color:var(--bad)}
+.notice.ok{background:var(--good-bg);border-color:var(--good)}
+.optedit{display:flex;gap:8px;align-items:center}
+.optedit input[type=radio]{width:20px;height:20px;accent-color:var(--good);flex:none}
+.optedit .k{font-family:var(--f-mono);font-weight:700;width:20px;flex:none;color:var(--cyan)}
+.adminbar{position:sticky;top:8px;z-index:5;background:rgba(15,30,43,.92);backdrop-filter:blur(8px);border:1px solid var(--line);border-top:3px solid var(--pink);border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.adminbar b{color:var(--pink);font-family:var(--f-display)}
+.foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;align-items:center}
+.foot a{color:var(--pink);font-weight:600;cursor:pointer;text-decoration:none;border:1px solid rgba(255,95,168,.4);border-radius:99px;padding:4px 12px}
+.foot a:hover{background:rgba(255,95,168,.1)}
+pre.code{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto;font-size:.82rem;margin:0;direction:ltr;text-align:left;color:var(--cyan);font-family:var(--f-mono)}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
+.pop{animation:pop .35s ease}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:480px){h1{font-size:1.32rem}.catrow{grid-template-columns:1fr auto}.catrow .bar{grid-column:1/-1;order:3}.vital b{font-size:1.3rem}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="application/json" id="qbank"></script>
+<script id="app-js" type="text/plain">
+(function(){
+"use strict";
+var TITLE = "SNLE Vitals";
+var FONTS = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">';
+var CSS_SRC = document.getElementById("app-css").textContent;
+var JS_SRC = document.getElementById("app-js").textContent;
+var BANK = JSON.parse(document.getElementById("qbank").textContent);
+var app = document.getElementById("app");
+var LETTERS = "ABCDE";
+var PASS = 60;
+
+var LS = {
+  get: function(k, d){ try{ var v = localStorage.getItem("npq_"+k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set: function(k, v){ try{ if(v == null) localStorage.removeItem("npq_"+k); else localStorage.setItem("npq_"+k, JSON.stringify(v)); }catch(e){} }
+};
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function $(sel, root){ return (root||document).querySelector(sel); }
+function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+function catName(bank, id){ var c = bank.cats.filter(function(x){ return x.id === id; })[0]; return c ? c.ar : "Uncategorized"; }
+function secList(){ var s = (BANK.secs || []).slice(); if(!s.some(function(x){ return x.id === "other"; })) s.push({id:"other", ar:"Other"}); return s; }
+function newId(p){ return (p||"q") + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+var ecg = '<div class="monitor" aria-hidden="true"><svg class="ecg" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 40 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70 h20 l8 -5 l8 5 h16 l6 7 l8 -40 l8 48 l6 -15 h22 l12 -8 l12 8 h70"/></svg><span class="tag">ECG · II</span><span class="tag2">SNLE</span></div>';
+
+/* ---------- capabilities ---------- */
+var CAP = { owner:false, artifact:null, user:null, ready:false };
+var DB = { db:null, uid:null, players:[], names:{}, ready:false, err:null, writeFail:false };
+(function(){
+  var c = window.claude;
+  if(!c || typeof c.use !== "function"){ CAP.ready = true; return; }
+  Promise.resolve(c.use("user")).then(function(u){
+    CAP.user = u || null;
+    if(u && typeof u.isOwner === "function"){ return Promise.resolve(u.isOwner()).then(function(v){ CAP.owner = !!v; }); }
+  }).catch(function(){}).then(function(){
+    return Promise.resolve(c.use("artifact")).then(function(a){ CAP.artifact = a || null; }).catch(function(){});
+  }).then(function(){
+    return Promise.resolve(c.use("db")).then(function(d){ DB.db = d || null; }).catch(function(){});
+  }).then(function(){
+    if(CAP.user && typeof CAP.user.id === "function") return Promise.resolve(CAP.user.id()).then(function(id){ DB.uid = id || null; }).catch(function(){});
+  }).then(function(){ CAP.ready = true; startBoard(); if(S.view === "home" || S.view === "admin") render(); });
+})();
+
+/* ---------- shared results (db) ---------- */
+function acc(p){ return p.answered ? Math.round(p.correct / p.answered * 100) : 0; }
+function pName(p){ return p.nick || (DB.names[p.id] && DB.names[p.id].name) || "Player"; }
+function secName(id){ var s = secList().filter(function(x){ return x.id === id; })[0]; return s ? s.ar : id; }
+function secOf(catId){ var c = BANK.cats.filter(function(x){ return x.id === catId; })[0]; return c ? (c.sec || "other") : "other"; }
+function weakest(secs){
+  var w = null; Object.keys(secs || {}).forEach(function(k){ var v = secs[k]; if(!v || !v.t || v.t < 5) return; var p = v.c / v.t; if(!w || p < w.p) w = { id:k, p:p }; });
+  return w;
+}
+function startBoard(){
+  if(!DB.db) return;
+  var timer = setTimeout(function(){ if(!DB.ready){ DB.err = "slow"; drawBoard(); } }, 10000);
+  try{
+    DB.db.collection("players").onSnapshot(function(snap){
+      if(!snap.metadata.fromCache){ clearTimeout(timer); DB.err = null; }
+      DB.ready = true;
+      DB.players = snap.docs.map(function(d){ var x = d.data() || {}; return { id:d.id, nick:String(x.nick || "").slice(0,30), rounds:+x.rounds || 0, answered:+x.answered || 0, correct:+x.correct || 0, best:+x.best || 0, last:+x.last || 0, secs: (x.secs && typeof x.secs === "object") ? x.secs : {} }; });
+      var ids = DB.players.map(function(p){ return p.id; });
+      if(ids.length && CAP.user && typeof CAP.user.profiles === "function"){
+        Promise.resolve(CAP.user.profiles(ids)).then(function(ps){ DB.names = ps || {}; drawBoard(); }).catch(function(){ drawBoard(); });
+      } else drawBoard();
+    }, function(e){ clearTimeout(timer); DB.err = (e && e.code) || "error"; DB.ready = true; drawBoard(); });
+  }catch(e){ DB.err = "error"; }
+}
+function pushResult(perSec, nAns, nCor, pct){
+  if(!DB.db || !DB.uid || !nAns) return;
+  var ref; try{ ref = DB.db.doc("players/" + DB.uid); }catch(e){ return; }
+  ref.get().then(function(snap){
+    var x = snap.exists ? (snap.data() || {}) : {};
+    var secs = JSON.parse(JSON.stringify(x.secs || {}));
+    Object.keys(perSec).forEach(function(k){ var o = secs[k] || {}; secs[k] = { t:(+o.t || 0) + perSec[k].t, c:(+o.c || 0) + perSec[k].c }; });
+    return ref.set({ nick:(S.name || "").slice(0,30), rounds:(+x.rounds || 0) + 1, answered:(+x.answered || 0) + nAns, correct:(+x.correct || 0) + nCor, best:Math.max(+x.best || 0, pct), last:Date.now(), secs:secs });
+  }).then(function(){ DB.writeFail = false; drawBoard(); }).catch(function(){ DB.writeFail = true; drawBoard(); });
+}
+function boardInner(){
+  var h = '<div class="row" style="justify-content:space-between"><h2>Leaderboard</h2><span class="small muted">Accuracy, players with 10+ answers</span></div>';
+  if(!DB.ready) return h + '<p class="muted">'+(DB.err === "slow" ? "Results can't be reached right now." : "Loading results…")+'</p>';
+  if(DB.err && DB.err !== "slow") return h + '<p class="muted">The leaderboard is unavailable right now.</p>';
+  var list = DB.players.filter(function(p){ return p.answered >= 10; }).sort(function(a,b){ return acc(b) - acc(a) || b.answered - a.answered; }).slice(0,10);
+  if(!list.length) h += '<p class="muted">No results yet. The first player to finish a round appears here.</p>';
+  else {
+    h += '<div style="overflow-x:auto"><table class="scores"><thead><tr><th>#</th><th>Player</th><th>Accuracy</th><th>Answered</th><th>Rounds</th></tr></thead><tbody>';
+    list.forEach(function(p,i){ h += '<tr'+(p.id === DB.uid ? ' class="me"' : '')+'><td class="num">'+(i+1)+'</td><td>'+esc(pName(p))+(p.id === DB.uid ? ' <span class="badge good">You</span>' : '')+'</td><td class="num"><b>'+acc(p)+'%</b></td><td class="num">'+p.answered+'</td><td class="num">'+p.rounds+'</td></tr>'; });
+    h += '</tbody></table></div>';
+  }
+  if(!DB.uid || DB.writeFail) h += '<p class="small muted">Your results are in My Stats on this device, but they are not recorded on this leaderboard from your current account.</p>';
+  return h;
+}
+function drawBoard(){
+  var b = document.getElementById("board"); if(b) b.innerHTML = boardInner();
+  if(S.view === "admin" && A && A.tab === "results") paneResults();
+}
+
+/* ---------- personal stats (this device) ---------- */
+function myStats(){
+  var hist = LS.get("hist", {}), byId = {};
+  BANK.questions.forEach(function(q){ byId[q.id] = q; });
+  var r = { tot:0, cor:0, seen:0, cat:{}, sec:{}, wrong:[] };
+  Object.keys(hist).forEach(function(id){
+    var q = byId[id], h = hist[id]; if(!q || !h) return;
+    var t = (h[0]||0) + (h[1]||0), c = h[0]||0;
+    r.seen++; r.tot += t; r.cor += c;
+    var a = r.cat[q.cat] = r.cat[q.cat] || {t:0,c:0}; a.t += t; a.c += c;
+    var sid = secOf(q.cat), b = r.sec[sid] = r.sec[sid] || {t:0,c:0}; b.t += t; b.c += c;
+    if(!h[2]) r.wrong.push(q);
+  });
+  return r;
+}
+function bar(p){ return '<div class="bar"><i style="width:'+p+'%;background:'+(p >= PASS ? "var(--good)" : "var(--bad)")+'"></i></div>'; }
+function renderStats(){
+  var st = myStats(), rounds = LS.get("rounds", []);
+  var accAll = st.tot ? Math.round(st.cor / st.tot * 100) : 0;
+  var cover = BANK.questions.length ? Math.round(st.seen / BANK.questions.length * 100) : 0;
+  var h = '<div class="wrap">' + header('<button class="btn sm" id="home">Back to game</button>');
+  h += '<div class="row" style="justify-content:space-between"><h2>My Stats'+(S.name ? ' · '+esc(S.name) : '')+'</h2><span class="small muted">Saved on this device</span></div>';
+  h += '<section class="vitals"><div class="vital" style="--c:var(--accent)"><span>Overall accuracy</span><b>'+accAll+'%</b></div><div class="vital" style="--c:var(--cyan)"><span>Questions answered</span><b>'+st.tot+'</b></div><div class="vital" style="--c:var(--gold)"><span>Bank covered</span><b>'+cover+'%</b></div><div class="vital" style="--c:var(--pink)"><span>Rounds</span><b>'+rounds.length+'</b></div></section>';
+  if(!st.tot){
+    h += '<section class="card"><p class="muted">No stats yet. Play one round to see your performance in each section and your weak spots.</p><div><button class="btn primary" id="go">Start a round</button></div></section></div>';
+    app.innerHTML = h;
+    $("#home").addEventListener("click", function(){ go("home"); });
+    $("#go").addEventListener("click", function(){ go("home"); });
+    return;
+  }
+  h += '<section class="card"><h2>Performance by exam section</h2><div class="list">';
+  secList().forEach(function(s){ var v = st.sec[s.id]; if(!v || !v.t) return; var p = Math.round(v.c / v.t * 100);
+    h += '<div class="catrow"><span>'+esc(s.ar)+'</span>'+bar(p)+'<span class="num small">'+p+'% · '+v.c+'/'+v.t+'</span></div>'; });
+  h += '</div><p class="small muted">A green bar means you are above '+PASS+'%.</p></section>';
+  var cats = Object.keys(st.cat).filter(function(k){ return st.cat[k].t >= 3; }).map(function(k){ return { id:k, p: Math.round(st.cat[k].c / st.cat[k].t * 100), t: st.cat[k].t }; }).sort(function(a,b){ return a.p - b.p; });
+  if(cats.length){
+    h += '<section class="card"><h2>Your weak spots</h2><p class="small muted">Topics where you answered 3+ questions, weakest first.</p><div class="list">';
+    cats.slice(0,6).forEach(function(c){ h += '<div class="catrow"><span>'+esc(catName(BANK, c.id))+'</span>'+bar(c.p)+'<button class="btn sm" data-train="'+esc(c.id)+'">Practice · '+c.p+'%</button></div>'; });
+    h += '</div></section>';
+  }
+  var last = rounds.slice(-15);
+  if(last.length){
+    var W = 600, H = 150, bw = W / 15;
+    var svg = '<svg viewBox="0 0 '+W+' '+(H+22)+'" style="width:100%;height:auto;display:block" role="img" aria-label="Results of recent rounds">';
+    svg += '<line x1="0" x2="'+W+'" y1="'+(H - H*PASS/100)+'" y2="'+(H - H*PASS/100)+'" stroke="var(--gold)" stroke-dasharray="6 6" stroke-width="1.5"/>';
+    last.forEach(function(r,i){ var bh = Math.max(3, H * r.pct / 100), x = i*bw + bw*0.18;
+      svg += '<rect x="'+x+'" y="'+(H-bh)+'" width="'+(bw*0.64)+'" height="'+bh+'" rx="4" fill="'+(r.pct >= PASS ? "var(--good)" : "var(--bad)")+'" opacity="'+(i === last.length-1 ? 1 : .7)+'"/>';
+      svg += '<text x="'+(x + bw*0.32)+'" y="'+(H+16)+'" text-anchor="middle" font-size="12" fill="var(--muted)" font-family="JetBrains Mono,monospace">'+r.pct+'</text>'; });
+    svg += '</svg>';
+    h += '<section class="card"><div class="row" style="justify-content:space-between"><h2>Your progress</h2><span class="small muted">Last '+last.length+' rounds · yellow line at '+PASS+'%</span></div>'+svg+'</section>';
+  }
+  h += '<section class="card"><h2>My mistakes</h2><p class="muted">'+(st.wrong.length ? 'You have '+st.wrong.length+' questions where your last answer was wrong. Answer one correctly and it leaves this list.' : 'Nothing pending. You have since answered every missed question correctly.')+'</p>';
+  h += '<div class="row">'+(st.wrong.length ? '<button class="btn primary" id="mist">Practice my mistakes ('+Math.min(st.wrong.length, 50)+')</button>' : '')+'<button class="btn ghost danger" id="reset">Reset my stats</button></div></section></div>';
+  app.innerHTML = h;
+  $("#home").addEventListener("click", function(){ go("home"); });
+  $all("[data-train]").forEach(function(b){ b.addEventListener("click", function(){ var id = b.getAttribute("data-train"); startGame(BANK.questions.filter(function(q){ return q.cat === id; }), "practice"); }); });
+  var m = $("#mist"); if(m) m.addEventListener("click", function(){ startGame(st.wrong, "practice"); });
+  var rs = $("#reset"), armed = false;
+  rs.addEventListener("click", function(){ if(!armed){ armed = true; rs.textContent = "Click again to reset"; return; } ["hist","rounds","seen","scores","xp"].forEach(function(k){ LS.set(k, null); }); renderStats(); });
+}
+
+/* ---------- state ---------- */
+var S = {
+  view: "home",
+  sel: LS.get("cats", []),
+  count: LS.get("count", 20),
+  mode: LS.get("mode", "practice"),
+  name: LS.get("name", "")
+};
+var G = null;
+var A = null; /* admin state */
+
+/* clear a stored draft that is already live */
+(function(){ var d = LS.get("draft", null); if(d && JSON.stringify(d.questions) === JSON.stringify(BANK.questions) && JSON.stringify(d.cats) === JSON.stringify(BANK.cats)) LS.set("draft", null); })();
+
+/* ---------- levels ---------- */
+var LEVELS = ["Trainee","Novice Nurse","Competent Nurse","Proficient Nurse","Expert Nurse","SNLE Legend"];
+function levelInfo(xp){ var per = 300; var l = Math.floor(xp/per); return { n:l+1, title:LEVELS[Math.min(l, LEVELS.length-1)], pct: Math.round((xp % per)/per*100), toNext: per - (xp % per) }; }
+
+/* ---------- routing ---------- */
+function go(view){
+  if(G && G.timer && view !== "play"){ clearInterval(G.timer); G.timer = null; }
+  S.view = view;
+  if(view === "admin"){ if(location.hash !== "#admin") location.hash = "admin"; }
+  else if(location.hash === "#admin"){ history.replaceState(null, "", location.pathname + location.search); }
+  render();
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", function(){ if(location.hash === "#admin" && S.view !== "admin") go("admin"); else if(location.hash !== "#admin" && S.view === "admin") go("home"); });
+
+function render(){
+  if(S.view === "home") return renderHome();
+  if(S.view === "play") return renderPlay();
+  if(S.view === "result") return renderResult();
+  if(S.view === "review") return renderReview();
+  if(S.view === "admin") return renderAdmin();
+  if(S.view === "stats") return renderStats();
+}
+
+function header(extra){
+  return '<header class="top"><div class="brand"><h1>'+esc(BANK.title || TITLE)+'</h1><span class="sub">Practice questions for the Saudi Nursing Licensure Exam</span></div>'+(extra||"")+'</header>'+ecg;
+}
+
+/* ---------- home ---------- */
+function poolFor(sel){ return BANK.questions.filter(function(q){ return !sel.length || sel.indexOf(q.cat) > -1; }); }
+
+function renderHome(){
+  var xp = LS.get("xp", 0), lv = levelInfo(xp);
+  var pool = poolFor(S.sel);
+  var counts = {}; BANK.questions.forEach(function(q){ counts[q.cat] = (counts[q.cat]||0)+1; });
+  var scores = LS.get("scores", []).slice(0,5);
+  var h = '<div class="wrap">' + header('<button class="btn sm" id="tostats">My Stats</button>');
+  var played = LS.get("scores", []).length, best = played ? LS.get("scores", [])[0].pct : 0;
+  h += '<section class="vitals"><div class="vital" style="--c:var(--accent)"><span>Question bank</span><b>'+BANK.questions.length+'</b></div><div class="vital" style="--c:var(--cyan)"><span>Level</span><b>'+lv.n+'</b></div><div class="vital" style="--c:var(--gold)"><span>Best score</span><b>'+best+'%</b></div><div class="vital" style="--c:var(--pink)"><span>Rounds played</span><b>'+played+'</b></div></section>';
+  h += '<section class="card"><div class="player"><label class="fld" style="flex:1;min-width:200px" for="pname">Player name<input type="text" id="pname" maxlength="30" placeholder="Type your name" value="'+esc(S.name)+'"></label>'+
+       '<div class="lvl"><div class="row" style="justify-content:space-between"><span class="badge gold">Level '+lv.n+' · '+esc(lv.title)+'</span><span class="small muted num">'+xp+' XP</span></div><div class="bar"><i style="width:'+lv.pct+'%"></i></div><span class="small muted">'+lv.toNext+' XP to the next level</span></div></div></section>';
+  h += '<section class="card"><div class="row" style="justify-content:space-between"><h2>Choose topics</h2><button class="btn sm ghost" id="allcats">'+(S.sel.length ? "All topics" : "All selected")+'</button></div>';
+  secList().forEach(function(sec){
+    var cs = BANK.cats.filter(function(c){ return (c.sec||"other") === sec.id; });
+    if(!cs.length) return;
+    var tot = cs.reduce(function(a,c){ return a + (counts[c.id]||0); }, 0);
+    var allOn = cs.every(function(c){ return S.sel.indexOf(c.id) > -1; });
+    h += '<div class="row" style="justify-content:space-between;margin-top:4px"><h3>'+esc(sec.ar)+' <span class="small muted num">('+tot+')</span></h3><button class="btn sm ghost" data-sec="'+esc(sec.id)+'">'+(allOn?"Clear section":"Select whole section")+'</button></div><div class="grid">';
+    cs.forEach(function(c){
+      var on = S.sel.indexOf(c.id) > -1;
+      h += '<button class="chip'+(on?" on":"")+'" data-cat="'+esc(c.id)+'" aria-pressed="'+on+'"><span><b>'+esc(c.ar)+'</b><br><span class="small muted ltr">'+esc(c.en||"")+'</span></span><span class="n">'+(counts[c.id]||0)+'</span></button>';
+    });
+    h += '</div>';
+  });
+  h += '</section>';
+  var cnts = [10,20,50,100];
+  h += '<section class="card"><div class="row" style="justify-content:space-between;gap:16px"><div class="fld" style="display:flex;flex-direction:column;gap:6px"><b>Number of questions</b><div class="seg" role="group">';
+  cnts.forEach(function(n){ h += '<button data-count="'+n+'" class="'+(S.count===n?"on":"")+'">'+n+'</button>'; });
+  h += '</div></div><div style="display:flex;flex-direction:column;gap:6px"><b>Mode</b><div class="seg" role="group"><button data-mode="practice" class="'+(S.mode==="practice"?"on":"")+'">Practice with rationale</button><button data-mode="exam" class="'+(S.mode==="exam"?"on":"")+'">Timed exam</button></div></div></div>';
+  h += '<p class="small muted">'+(S.mode==="practice" ? "See the correct answer and rationale after each question. Every 3 correct in a row earns bonus points." : "One minute per question, like the real exam. Score and rationales at the end.")+'</p>';
+  var n = Math.min(S.count === "all" ? 100 : S.count, pool.length);
+  h += '<button class="btn primary big" id="start" '+(pool.length?"":"disabled")+'>Start · '+n+' questions</button></section>';
+  h += '<section class="card"><h2>Best scores on this device</h2>';
+  if(!scores.length) h += '<p class="muted">No scores yet. Play your first round to see it here.</p>';
+  else {
+    h += '<div style="overflow-x:auto"><table class="scores"><thead><tr><th>#</th><th>Player</th><th>Score</th><th>Points</th><th>Questions</th><th>Mode</th></tr></thead><tbody>';
+    scores.forEach(function(s,i){ h += '<tr><td>'+(i+1)+'</td><td>'+esc(s.name||"Player")+'</td><td><b>'+s.pct+'%</b></td><td>'+s.pts+'</td><td>'+s.n+'</td><td>'+(s.mode==="exam"?"Exam":"Practice")+'</td></tr>'; });
+    h += '</tbody></table></div>';
+  }
+  h += '</section>';
+  if(DB.db) h += '<section class="card" id="board">'+boardInner()+'</section>';
+  h += '<footer class="foot"><span>'+BANK.questions.length+' questions · updated '+esc(BANK.updated||"")+'</span>'+'<span>Independent study tool. Not affiliated with SCFHS or Prometric.</span>'+(CAP.owner ? '<a id="toadmin" href="#admin">Admin</a>' : '')+'</footer>';
+  h += '</div>';
+  app.innerHTML = h;
+
+  $("#pname").addEventListener("input", function(e){ S.name = e.target.value.trim(); LS.set("name", S.name); });
+  $("#tostats").addEventListener("click", function(){ go("stats"); });
+  $all("[data-cat]").forEach(function(b){ b.addEventListener("click", function(){ var id = b.getAttribute("data-cat"); var i = S.sel.indexOf(id); if(i>-1) S.sel.splice(i,1); else S.sel.push(id); LS.set("cats", S.sel); renderHome(); }); });
+  $("#allcats").addEventListener("click", function(){ S.sel = []; LS.set("cats", S.sel); renderHome(); });
+  $all("[data-sec]").forEach(function(b){ b.addEventListener("click", function(){
+    var ids = BANK.cats.filter(function(c){ return (c.sec||"other") === b.getAttribute("data-sec"); }).map(function(c){ return c.id; });
+    var allOn = ids.every(function(id){ return S.sel.indexOf(id) > -1; });
+    S.sel = S.sel.filter(function(id){ return ids.indexOf(id) < 0; });
+    if(!allOn) S.sel = S.sel.concat(ids);
+    LS.set("cats", S.sel); renderHome(); }); });
+  $all("[data-count]").forEach(function(b){ b.addEventListener("click", function(){ var v = b.getAttribute("data-count"); S.count = +v; LS.set("count", S.count); renderHome(); }); });
+  $all("[data-mode]").forEach(function(b){ b.addEventListener("click", function(){ S.mode = b.getAttribute("data-mode"); LS.set("mode", S.mode); renderHome(); }); });
+  $("#start").addEventListener("click", function(){ startGame(); });
+  var ta = $("#toadmin"); if(ta) ta.addEventListener("click", function(e){ e.preventDefault(); go("admin"); });
+}
+
+/* ---------- game ---------- */
+function startGame(custom, forceMode){
+  var seen = {}; LS.get("seen", []).forEach(function(id){ seen[id] = 1; });
+  var isCustom = Array.isArray(custom) && custom.length > 0;
+  var all = isCustom ? custom : poolFor(S.sel);
+  var fresh = shuffle(all.filter(function(q){ return !seen[q.id]; }));
+  var old = shuffle(all.filter(function(q){ return seen[q.id]; }));
+  var n = isCustom ? Math.min(50, all.length) : Math.min(S.count === "all" ? 100 : S.count, all.length);
+  if(!isCustom && fresh.length < n){ var keep = {}; all.forEach(function(q){ keep[q.id] = 1; }); LS.set("seen", LS.get("seen", []).filter(function(id){ return !keep[id]; })); }
+  var pool = fresh.concat(old);
+  var qs = pool.slice(0, n).map(function(q){ return { q:q, order: q.options.map(function(_,i){ return i; }), pick:null, ok:null }; });
+  G = { qs:qs, i:0, pts:0, streak:0, best:0, mode: forceMode || S.mode, start:Date.now(), timeLeft: qs.length*60, timer:null };
+  if(G.mode === "exam") G.timer = setInterval(tick, 1000);
+  else G.timer = null;
+  go("play");
+}
+function fmt(s){ s = Math.max(0, s); var m = Math.floor(s/60), r = s%60; return m + ":" + (r<10?"0":"") + r; }
+function tick(){
+  if(!G) return;
+  G.timeLeft--;
+  var t = $("#timer"); if(t){ t.textContent = fmt(G.timeLeft); if(G.timeLeft <= 60) t.parentNode.classList.add("bad"); }
+  if(G.timeLeft <= 0) finish();
+}
+
+function renderPlay(){
+  var it = G.qs[G.i], q = it.q, practice = G.mode === "practice";
+  var answered = practice && it.pick !== null;
+  var done = G.qs.filter(function(x){ return x.pick !== null; }).length;
+  var h = '<div class="wrap">';
+  h += '<div class="hud"><button class="btn sm ghost" id="quit">End</button><div class="stats">';
+  if(practice){
+    h += '<span class="badge gold num" id="pts">'+G.pts+' pts</span>';
+    h += '<span class="badge num'+(G.streak>=3?" good":"")+'">Streak ×'+G.streak+'</span>';
+  } else {
+    h += '<span class="badge num">Answered '+done+' / '+G.qs.length+'</span>';
+    h += '<span class="badge num'+(G.timeLeft<=60?" bad":"")+'">Time <span id="timer">'+fmt(G.timeLeft)+'</span></span>';
+  }
+  h += '</div></div>';
+  h += '<div class="bar" aria-hidden="true"><i style="width:'+Math.round((G.i+(answered?1:0))/G.qs.length*100)+'%"></i></div>';
+  h += '<section class="card"><div class="row" style="justify-content:space-between"><span class="badge">'+esc(catName(BANK, q.cat))+'</span><span class="small muted num">Question '+(G.i+1)+' of '+G.qs.length+'</span></div>';
+  h += '<p class="qtext ltr">'+esc(q.q)+'</p><div class="opts" role="group">';
+  it.order.forEach(function(oi, pos){
+    var cls = "opt";
+    if(answered){ if(oi === q.answer) cls += " correct"; else if(oi === it.pick) cls += " wrong"; }
+    else if(it.pick === oi) cls += " sel";
+    h += '<button class="'+cls+'" data-oi="'+oi+'" '+(answered?"disabled":"")+'><span class="k">'+LETTERS[pos]+'</span><span>'+esc(q.options[oi])+'</span></button>';
+  });
+  h += '</div>';
+  if(answered){
+    h += '<div class="exp '+(it.ok?"good":"bad")+'"><b>'+(it.ok ? (G.streak>=3 ? "Correct! Streak "+G.streak+" (+15)" : "Correct (+10)") : "Incorrect")+'</b>'+(q.exp ? '<p class="ltr" style="margin-top:6px">'+esc(q.exp)+'</p>' : '<p class="small muted" style="margin-top:6px">No rationale for this question.</p>')+'</div>';
+  }
+  h += '<div class="row" style="justify-content:space-between">';
+  if(practice){
+    h += '<span class="small muted">Shortcuts: number keys to answer, Enter for next</span>';
+    h += '<button class="btn primary" id="next" '+(answered?"":"disabled")+'>'+(G.i === G.qs.length-1 ? "See results" : "Next question")+'</button>';
+  } else {
+    h += '<button class="btn" id="prev" '+(G.i===0?"disabled":"")+'>Previous</button>';
+    h += G.i === G.qs.length-1 ? '<button class="btn primary" id="finish">Submit exam</button>' : '<button class="btn primary" id="next">Next</button>';
+  }
+  h += '</div></section></div>';
+  app.innerHTML = h;
+
+  $("#quit").addEventListener("click", function(){ if(done) finish(); else go("home"); });
+  $all("[data-oi]").forEach(function(b){ b.addEventListener("click", function(){ choose(+b.getAttribute("data-oi")); }); });
+  var nx = $("#next"); if(nx) nx.addEventListener("click", next);
+  var pv = $("#prev"); if(pv) pv.addEventListener("click", function(){ G.i--; renderPlay(); });
+  var fn = $("#finish"); if(fn) fn.addEventListener("click", finish);
+}
+function choose(oi){
+  var it = G.qs[G.i];
+  if(G.mode === "practice"){
+    if(it.pick !== null) return;
+    it.pick = oi; it.ok = oi === it.q.answer;
+    if(it.ok){ G.streak++; G.pts += 10 + (G.streak >= 3 ? 5 : 0); G.best = Math.max(G.best, G.streak); } else G.streak = 0;
+    renderPlay();
+    var p = $("#pts"); if(p && it.ok) p.classList.add("pop");
+  } else { it.pick = oi; renderPlay(); }
+}
+function next(){
+  if(G.mode === "practice" && G.qs[G.i].pick === null) return;
+  if(G.i < G.qs.length-1){ G.i++; renderPlay(); window.scrollTo(0,0); } else finish();
+}
+document.addEventListener("keydown", function(e){
+  if(S.view !== "play" || !G) return;
+  var tag = (e.target && e.target.tagName) || ""; if(/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  var k = e.key.toUpperCase(), idx = "123456".indexOf(k); if(idx < 0) idx = "ABCDEF".indexOf(k);
+  var it = G.qs[G.i];
+  if(idx > -1 && idx < it.order.length){ choose(it.order[idx]); e.preventDefault(); }
+  else if(e.key === "Enter"){ if(G.mode === "exam" && G.i === G.qs.length-1) finish(); else next(); e.preventDefault(); }
+});
+
+function finish(){
+  if(!G) return;
+  if(G.timer){ clearInterval(G.timer); G.timer = null; }
+  G.qs.forEach(function(it){ it.ok = it.pick !== null && it.pick === it.q.answer; });
+  var answered = G.qs.filter(function(x){ return x.pick !== null; });
+  var correct = G.qs.filter(function(x){ return x.ok; }).length;
+  if(G.mode === "exam") G.pts = correct * 10;
+  G.correct = correct;
+  G.pct = G.qs.length ? Math.round(correct / G.qs.length * 100) : 0;
+  G.secs = Math.round((Date.now()-G.start)/1000);
+  G.xpGain = answered.length ? G.pts + (G.pct >= PASS ? 20 : 0) : 0;
+  if(answered.length){
+    var sn = LS.get("seen", []); answered.forEach(function(it){ if(sn.indexOf(it.q.id) < 0) sn.push(it.q.id); }); LS.set("seen", sn.slice(-4000));
+    LS.set("xp", LS.get("xp",0) + G.xpGain);
+    var sc = LS.get("scores", []);
+    sc.push({ name: S.name || "Player", pct:G.pct, pts:G.pts, n:G.qs.length, mode:G.mode, d:Date.now() });
+    sc.sort(function(a,b){ return b.pct - a.pct || b.pts - a.pts || b.n - a.n; });
+    LS.set("scores", sc.slice(0,20));
+    var hist = LS.get("hist", {}), perSec = {}, nCor = 0;
+    answered.forEach(function(it){
+      var h = hist[it.q.id] || [0,0,0];
+      if(it.ok){ h[0]++; h[2] = 1; nCor++; } else { h[1]++; h[2] = 0; }
+      hist[it.q.id] = h;
+      var sid = secOf(it.q.cat), v = perSec[sid] = perSec[sid] || {t:0,c:0}; v.t++; if(it.ok) v.c++;
+    });
+    LS.set("hist", hist);
+    var apct = Math.round(nCor / answered.length * 100);
+    var rd = LS.get("rounds", []); rd.push({ d:Date.now(), pct:apct, n:answered.length, mode:G.mode }); LS.set("rounds", rd.slice(-100));
+    pushResult(perSec, answered.length, nCor, apct);
+  }
+  go("result");
+}
+
+function renderResult(){
+  var pass = G.pct >= PASS;
+  var byCat = {};
+  G.qs.forEach(function(it){ var c = it.q.cat; byCat[c] = byCat[c] || {t:0,c:0}; byCat[c].t++; if(it.ok) byCat[c].c++; });
+  var wrong = G.qs.filter(function(x){ return !x.ok; }).length;
+  var h = '<div class="wrap">' + header();
+  h += '<section class="card"><div class="result-head"><div class="ring" style="--p:'+G.pct+'"><div class="num">'+G.pct+'%</div></div><div style="display:flex;flex-direction:column;gap:10px;flex:1;min-width:220px">';
+  h += '<h2>'+(pass ? "Well done"+(S.name?", "+esc(S.name):"")+"! You beat the target of "+PASS+"%" : "Keep going"+(S.name?", "+esc(S.name):"")+". Target: "+PASS+"%")+'</h2>';
+  h += '<div class="kv"><div><span class="small muted">Correct</span><b>'+G.correct+' / '+G.qs.length+'</b></div><div><span class="small muted">Points</span><b>'+G.pts+'</b></div><div><span class="small muted">XP earned</span><b>+'+G.xpGain+'</b></div><div><span class="small muted">'+(G.mode==="practice"?"Best streak":"Time")+'</span><b>'+(G.mode==="practice"? G.best : fmt(G.secs))+'</b></div></div></div></div></section>';
+  h += '<section class="card"><h2>Performance by topic</h2><div class="list">';
+  Object.keys(byCat).forEach(function(c){ var v = byCat[c], p = Math.round(v.c/v.t*100);
+    h += '<div class="catrow"><span>'+esc(catName(BANK,c))+'</span><div class="bar"><i style="width:'+p+'%;background:'+(p>=PASS?"var(--good)":"var(--bad)")+'"></i></div><span class="num small">'+v.c+'/'+v.t+'</span></div>'; });
+  h += '</div></section>';
+  h += '<div class="row"><button class="btn primary" id="again">New round</button>'+(wrong?'<button class="btn" id="review">Review mistakes ('+wrong+')</button>':'')+'<button class="btn" id="tostats">My Stats</button><button class="btn ghost" id="home">Home</button></div></div>';
+  app.innerHTML = h;
+  $("#tostats").addEventListener("click", function(){ go("stats"); });
+  $("#again").addEventListener("click", function(){ startGame(); });
+  var rv = $("#review"); if(rv) rv.addEventListener("click", function(){ go("review"); });
+  $("#home").addEventListener("click", function(){ go("home"); });
+}
+
+function renderReview(){
+  var items = G.qs.filter(function(x){ return !x.ok; });
+  var h = '<div class="wrap"><div class="row" style="justify-content:space-between"><h2>Review mistakes</h2><button class="btn sm" id="back">Back to results</button></div><div class="list">';
+  items.forEach(function(it, i){
+    var q = it.q;
+    h += '<article class="item"><div class="meta"><span class="badge">'+esc(catName(BANK,q.cat))+'</span><span class="badge '+(it.pick===null?"":"bad")+'">'+(it.pick===null?"Not answered":"Wrong")+'</span></div>';
+    h += '<p class="qtext ltr">'+(i+1)+'. '+esc(q.q)+'</p>';
+    if(it.pick !== null) h += '<p class="ltr" style="color:var(--bad)">Your answer: '+esc(q.options[it.pick])+'</p>';
+    h += '<p class="ltr" style="color:var(--good);font-weight:600">Correct: '+esc(q.options[q.answer])+'</p>';
+    if(q.exp) h += '<div class="exp ltr">'+esc(q.exp)+'</div>';
+    h += '</article>';
+  });
+  h += '</div><div class="row"><button class="btn primary" id="again">New round</button><button class="btn ghost" id="home">Home</button></div></div>';
+  app.innerHTML = h;
+  $("#back").addEventListener("click", function(){ go("result"); });
+  $("#again").addEventListener("click", function(){ startGame(); });
+  $("#home").addEventListener("click", function(){ go("home"); });
+}
+
+/* ---------- admin ---------- */
+function paneResults(){
+  var pane = $("#pane"); if(!pane) return;
+  var h = '<section class="card">';
+  if(!DB.db){ pane.innerHTML = h + '<h2>Student results</h2><p class="muted">Shared results are not available in this view. Open the game from its page on claude.ai while signed in.</p></section>'; return; }
+  if(!DB.ready){ pane.innerHTML = h + '<h2>Student results</h2><p class="muted">'+(DB.err === "slow" ? "Results can't be reached right now." : "Loading results…")+'</p></section>'; return; }
+  var ps = DB.players.slice().sort(function(a,b){ return b.last - a.last; });
+  var tA = 0, tC = 0, sec = {};
+  ps.forEach(function(p){ tA += p.answered; tC += p.correct; Object.keys(p.secs).forEach(function(k){ var v = p.secs[k] || {}, o = sec[k] = sec[k] || {t:0,c:0}; o.t += +v.t || 0; o.c += +v.c || 0; }); });
+  var wk = weakest(sec);
+  h = '<section class="vitals"><div class="vital" style="--c:var(--accent)"><span>Students recorded</span><b>'+ps.length+'</b></div><div class="vital" style="--c:var(--cyan)"><span>Total answers</span><b>'+tA+'</b></div><div class="vital" style="--c:var(--gold)"><span>Average accuracy</span><b>'+(tA ? Math.round(tC/tA*100) : 0)+'%</b></div><div class="vital" style="--c:var(--pink)"><span>Weakest section</span><b style="font-size:1rem;font-family:var(--f-display)">'+(wk ? esc(secName(wk.id)) : "—")+'</b></div></section>';
+  h += '<section class="card"><div class="row" style="justify-content:space-between"><h2>Student results</h2><button class="btn sm" id="r-copy" '+(ps.length ? "" : "disabled")+'>Copy as table</button></div>';
+  h += '<p class="small muted">Results are recorded here for students signed in to claude.ai with write access. Players on the public link keep their stats on their own device only.</p>';
+  if(!ps.length) h += '<p class="muted">No results recorded yet.</p>';
+  else {
+    h += '<div style="overflow-x:auto"><table class="scores wide"><thead><tr><th>Student</th><th>Rounds</th><th>Answered</th><th>Accuracy</th><th>Best round</th><th>Weakest section</th><th>Last played</th><th></th></tr></thead><tbody>';
+    ps.forEach(function(p){ var w = weakest(p.secs);
+      h += '<tr><td>'+esc(pName(p))+'</td><td class="num">'+p.rounds+'</td><td class="num">'+p.answered+'</td><td class="num"><b style="color:'+(acc(p) >= PASS ? "var(--good)" : "var(--bad)")+'">'+acc(p)+'%</b></td><td class="num">'+p.best+'%</td><td>'+(w ? esc(secName(w.id))+' <span class="num small muted" dir="ltr">'+Math.round(w.p*100)+'%</span>' : '<span class="muted">—</span>')+'</td><td class="num small">'+(p.last ? new Date(p.last).toISOString().slice(0,10) : "")+'</td><td><button class="btn sm danger" data-pdel="'+esc(p.id)+'">Delete</button></td></tr>'; });
+    h += '</tbody></table></div>';
+  }
+  h += '<span class="small muted" id="r-status"></span></section>';
+  pane.innerHTML = h;
+  var cp = $("#r-copy"); if(cp) cp.addEventListener("click", function(){
+    var rows = [["Student","Rounds","Answered","Correct","Accuracy %","Best round %","Weakest section","Last played"]];
+    ps.forEach(function(p){ var w = weakest(p.secs); rows.push([pName(p), p.rounds, p.answered, p.correct, acc(p), p.best, w ? secName(w.id) : "", p.last ? new Date(p.last).toISOString().slice(0,10) : ""]); });
+    var txt = rows.map(function(r){ return r.join("\t"); }).join("\n");
+    try{ navigator.clipboard.writeText(txt).then(function(){ $("#r-status").textContent = "Table copied. Paste it into Excel."; }, function(){ $("#r-status").textContent = "Couldn't copy."; }); }catch(e){ $("#r-status").textContent = "Couldn't copy."; }
+  });
+  $all("[data-pdel]").forEach(function(b){ var armed = false; b.addEventListener("click", function(){
+    if(!armed){ armed = true; b.textContent = "Confirm"; return; }
+    b.disabled = true;
+    try{ DB.db.doc("players/" + b.getAttribute("data-pdel")).delete().catch(function(){ $("#r-status").textContent = "Couldn't delete the record."; }); }catch(e){}
+  }); });
+}
+
+function isDirty(){ return A && (JSON.stringify(A.draft.questions) !== JSON.stringify(BANK.questions) || JSON.stringify(A.draft.cats) !== JSON.stringify(BANK.cats) || JSON.stringify(A.draft.secs||[]) !== JSON.stringify(BANK.secs||[]) || A.draft.title !== BANK.title); }
+function saveDraft(){ LS.set("draft", isDirty() ? A.draft : null); }
+
+function renderAdmin(){
+  if(!CAP.ready){ app.innerHTML = '<div class="wrap">'+header()+'<section class="card"><p class="muted">Checking access…</p></section></div>'; return; }
+  if(!CAP.owner){
+    app.innerHTML = '<div class="wrap">'+header()+'<section class="card"><h2>This page is for the game owner only</h2><p class="muted">You can play and practice from the home page.</p><div><button class="btn primary" id="home">Back to game</button></div></section></div>';
+    $("#home").addEventListener("click", function(){ go("home"); });
+    return;
+  }
+  if(!A){
+    var stored = LS.get("draft", null);
+    A = { draft: stored ? stored : clone(BANK), tab:"results", q:"", cat:"", editing:null, restored: !!stored, msg:null, confirmDel:null, bulk:null };
+  }
+  var dirty = isDirty();
+  var h = '<div class="wrap">' + header('<button class="btn sm" id="home">View game</button>');
+  h += '<div class="adminbar"><div style="display:flex;flex-direction:column"><b>Admin</b><span class="small muted num">'+A.draft.questions.length+' questions in '+A.draft.cats.length+' topics</span></div><div class="row">'+
+       (dirty ? '<span class="badge bad">Unpublished changes</span><button class="btn sm ghost" id="discard">Discard changes</button>' : '<span class="badge good">All published</span>')+
+       '<button class="btn primary" id="publish" '+(dirty?"":"disabled")+'>Save &amp; publish</button></div></div>';
+  if(A.msg) h += '<div class="notice '+(A.msg.t||"")+'">'+esc(A.msg.m)+'</div>';
+  if(A.restored && dirty) h += '<div class="notice">Your unpublished edits were restored from this device. Publish them when you are done.</div>';
+  if(!CAP.artifact) h += '<div class="notice warn">Publishing is not available in this view. Open the game from its page on claude.ai while signed in. Your edits are kept on this device until then.</div>';
+  var tabs = [["results","Student results"],["list","Questions"],["edit", A.editing && A.editing !== "new" ? "Edit question" : "Add question"],["bulk","Bulk add"],["cats","Topics"],["backup","Backup"]];
+  h += '<nav class="tabs">'; tabs.forEach(function(t){ h += '<button data-tab="'+t[0]+'" class="'+(A.tab===t[0]?"on":"")+'">'+t[1]+'</button>'; }); h += '</nav>';
+  h += '<div id="pane"></div></div>';
+  app.innerHTML = h;
+  $("#home").addEventListener("click", function(){ go("home"); });
+  $("#publish").addEventListener("click", publishBank);
+  var dc = $("#discard"); if(dc) dc.addEventListener("click", function(){ if(A.confirmDiscard){ A.draft = clone(BANK); A.confirmDiscard = false; A.restored = false; A.msg = {t:"ok", m:"Reverted to the published version."}; saveDraft(); renderAdmin(); } else { A.confirmDiscard = true; dc.textContent = "Click again to confirm"; } });
+  $all("[data-tab]").forEach(function(b){ b.addEventListener("click", function(){ A.tab = b.getAttribute("data-tab"); if(A.tab === "edit" && !A.editing) A.editing = "new"; A.msg = null; renderAdmin(); }); });
+  if(A.tab === "list") paneList();
+  else if(A.tab === "edit") paneEdit();
+  else if(A.tab === "bulk") paneBulk();
+  else if(A.tab === "cats") paneCats();
+  else if(A.tab === "results") paneResults();
+  else paneBackup();
+}
+
+function catOptions(sel, withAll){
+  var h = withAll ? '<option value="">All topics</option>' : '';
+  var secs = (A.draft.secs||[]).concat([{id:"other",ar:"Other"}]);
+  secs.forEach(function(s){ var cs = A.draft.cats.filter(function(c){ return (c.sec||"other") === s.id; }); if(!cs.length) return;
+    h += '<optgroup label="'+esc(s.ar)+'">'; cs.forEach(function(c){ h += '<option value="'+esc(c.id)+'" '+(sel===c.id?"selected":"")+'>'+esc(c.ar)+'</option>'; }); h += '</optgroup>'; });
+  return h;
+}
+
+function paneList(){
+  var pane = $("#pane");
+  pane.innerHTML = '<section class="card"><div class="row"><input type="search" id="qsearch" placeholder="Search questions, options or ID" value="'+esc(A.q)+'" style="flex:2;min-width:200px"><select id="qcat" style="flex:1;min-width:150px">'+catOptions(A.cat,true)+'</select><button class="btn primary" id="addq">New question</button></div><span class="small muted" id="qcount"></span><div class="list" id="qlist"></div></section>';
+  function draw(){
+    var term = A.q.toLowerCase();
+    var list = A.draft.questions.filter(function(q){
+      if(A.cat && q.cat !== A.cat) return false;
+      if(!term) return true;
+      return ((q.src||"") + " " + q.q + " " + q.options.join(" ") + " " + (q.exp||"")).toLowerCase().indexOf(term) > -1;
+    });
+    $("#qcount").textContent = list.length + " questions";
+    var h = "";
+    if(!list.length) h = '<p class="muted">No matching questions.</p>';
+    var shown = list.slice().reverse().slice(0, A.limit || 50);
+    shown.forEach(function(q){
+      h += '<article class="item"><div class="meta"><span class="badge">'+esc(catName(A.draft,q.cat))+'</span><div class="row"><button class="btn sm" data-edit="'+esc(q.id)+'">Edit</button><button class="btn sm danger" data-del="'+esc(q.id)+'">'+(A.confirmDel===q.id?"Confirm delete":"Delete")+'</button></div></div>'+
+           (q.src ? '<span class="small muted ltr">'+esc(q.src)+'</span>' : '')+'<p class="ltr" style="font-weight:500">'+esc(q.q)+'</p><p class="ltr small" style="color:var(--good)">'+LETTERS[q.answer]+'. '+esc(q.options[q.answer])+'</p></article>';
+    });
+    if(list.length > shown.length) h += '<button class="btn" id="more">Show more ('+(list.length-shown.length)+' left)</button>';
+    $("#qlist").innerHTML = h;
+    var mo = $("#more"); if(mo) mo.addEventListener("click", function(){ A.limit = (A.limit||50) + 100; draw(); });
+    $all("[data-edit]").forEach(function(b){ b.addEventListener("click", function(){ A.editing = b.getAttribute("data-edit"); A.tab = "edit"; A.msg = null; renderAdmin(); }); });
+    $all("[data-del]").forEach(function(b){ b.addEventListener("click", function(){
+      var id = b.getAttribute("data-del");
+      if(A.confirmDel === id){ A.draft.questions = A.draft.questions.filter(function(q){ return q.id !== id; }); A.confirmDel = null; saveDraft(); A.msg = {t:"ok", m:"Question removed from the draft. Click Save & publish to apply."}; renderAdmin(); }
+      else { A.confirmDel = id; draw(); }
+    }); });
+  }
+  draw();
+  $("#qsearch").addEventListener("input", function(e){ A.q = e.target.value; A.limit = 50; A.confirmDel = null; draw(); });
+  $("#qcat").addEventListener("change", function(e){ A.cat = e.target.value; A.limit = 50; draw(); });
+  $("#addq").addEventListener("click", function(){ A.editing = "new"; A.tab = "edit"; A.msg = null; renderAdmin(); });
+}
+
+function paneEdit(){
+  var isNew = !A.editing || A.editing === "new";
+  var q = isNew ? { id:null, cat: A.cat || (A.draft.cats[0] && A.draft.cats[0].id), q:"", options:["","","",""], answer:0, exp:"" } : clone(A.draft.questions.filter(function(x){ return x.id === A.editing; })[0] || {});
+  if(!q.options){ A.editing = "new"; return paneEdit(); }
+  while(q.options.length < 4) q.options.push("");
+  var h = '<form class="card" id="qform" novalidate><h2>'+(isNew?"Add question":"Edit question")+'</h2>';
+  h += '<label class="fld" for="f-cat">Topic<select id="f-cat">'+catOptions(q.cat,false)+'</select></label>';
+  h += '<label class="fld" for="f-q">Question<textarea id="f-q" class="ltr" required>'+esc(q.q)+'</textarea></label>';
+  h += '<div class="fld" style="display:flex;flex-direction:column;gap:8px"><b>Options <span class="small muted">(mark the correct answer with the circle)</span></b>';
+  for(var i=0;i<5;i++){
+    if(i===4 && !q.options[4]) { h += '<div class="optedit" id="opt5wrap" style="display:none">'; } else h += '<div class="optedit">';
+    h += '<input type="radio" name="f-ans" id="f-ans-'+i+'" value="'+i+'" '+(q.answer===i?"checked":"")+' aria-label="Correct answer '+LETTERS[i]+'"><span class="k">'+LETTERS[i]+'</span><input type="text" id="f-opt-'+i+'" class="ltr" value="'+esc(q.options[i]||"")+'" placeholder="'+(i<2?"Required":"Optional")+'"></div>';
+  }
+  h += (q.options[4] ? '' : '<div><button type="button" class="btn sm ghost" id="add5">Add a fifth option</button></div>') + '</div>';
+  h += '<label class="fld" for="f-exp">Rationale (shown after answering)<textarea id="f-exp" class="ltr">'+esc(q.exp||"")+'</textarea></label>';
+  h += '<div id="f-err" class="notice warn" style="display:none"></div>';
+  h += '<div class="row"><button type="submit" class="btn primary">'+(isNew?"Add to draft":"Save changes")+'</button>'+(isNew?'<button type="button" class="btn" id="saveadd">Add &amp; next</button>':'')+'<button type="button" class="btn ghost" id="cancel">Cancel</button></div>';
+  h += '<p class="small muted">Edits are saved as a draft on this device. Players see them only after you click Save &amp; publish.</p></form>';
+  $("#pane").innerHTML = h;
+  var a5 = $("#add5"); if(a5) a5.addEventListener("click", function(){ $("#opt5wrap").style.display = ""; a5.parentNode.remove(); $("#f-opt-4").focus(); });
+  function collect(){
+    var opts = [], ansOrig = +(($("input[name=f-ans]:checked")||{value:0}).value), ans = -1;
+    for(var i=0;i<5;i++){ var v = $("#f-opt-"+i).value.trim(); if(v){ if(i === ansOrig) ans = opts.length; opts.push(v); } }
+    var text = $("#f-q").value.trim(), err = "";
+    if(!text) err = "Write the question.";
+    else if(opts.length < 2) err = "Add at least two options.";
+    else if(ans < 0) err = "The selected answer is empty. Pick a filled option as the correct answer.";
+    if(err){ var e = $("#f-err"); e.textContent = err; e.style.display = ""; return null; }
+    return { id: q.id || newId("q"), src: q.src || undefined, cat: $("#f-cat").value, q: text, options: opts, answer: ans, exp: $("#f-exp").value.trim() };
+  }
+  function save(again){
+    var nq = collect(); if(!nq) return;
+    if(isNew) A.draft.questions.push(nq);
+    else A.draft.questions = A.draft.questions.map(function(x){ return x.id === nq.id ? nq : x; });
+    saveDraft();
+    A.cat = nq.cat;
+    if(again){ A.editing = "new"; A.msg = {t:"ok", m:"Question added. Add the next one."}; }
+    else { A.editing = null; A.tab = "list"; A.msg = {t:"ok", m: isNew ? "Question added to the draft." : "Changes saved to the draft."}; }
+    renderAdmin();
+    if(again){ var f = $("#f-q"); if(f) f.focus(); }
+  }
+  $("#qform").addEventListener("submit", function(e){ e.preventDefault(); save(false); });
+  var sa = $("#saveadd"); if(sa) sa.addEventListener("click", function(){ save(true); });
+  $("#cancel").addEventListener("click", function(){ A.editing = null; A.tab = "list"; renderAdmin(); });
+}
+
+function parseBulk(text){
+  var blocks = text.replace(/\r/g,"").split(/\n\s*\n/).map(function(b){ return b.trim(); }).filter(Boolean);
+  var out = [], errs = [];
+  blocks.forEach(function(b, bi){
+    var lines = b.split("\n").map(function(l){ return l.trim(); }).filter(Boolean);
+    var q = "", opts = [], ans = -1, exp = "", mode = "q", m;
+    lines.forEach(function(l){
+      if((m = l.match(/^(?:correct answer|answer|ans|correct|الإجابة الصحيحة|الإجابة|الاجابة)\s*[:：\-]\s*\(?([A-Ea-e])\b/i))){ ans = "ABCDE".indexOf(m[1].toUpperCase()); mode = "ans"; return; }
+      if((m = l.match(/^(?:explanation|rationale|exp|الشرح|التفسير)\s*[:：\-]\s*(.*)$/i))){ exp = m[1]; mode = "exp"; return; }
+      if(mode !== "exp" && (m = l.match(/^\(?([A-Ea-e])\s*[\)\.\-:]\s*(.+)$/))){ var t = m[2]; if(/\s*\*$/.test(t)){ t = t.replace(/\s*\*$/,""); ans = opts.length; } opts.push(t); mode = "opt"; return; }
+      if(mode === "exp"){ exp += (exp?" ":"") + l; return; }
+      if(mode === "q"){ q += (q?" ":"") + l.replace(/^(?:q(?:uestion)?\s*\d*|\d+)\s*[\.\):：\-]\s*/i, ""); return; }
+    });
+    var n = bi + 1;
+    if(!q) errs.push("Question "+n+": no question text.");
+    else if(opts.length < 2) errs.push("Question "+n+": needs at least two options like A) ...");
+    else if(ans < 0 || ans >= opts.length) errs.push("Question "+n+": no correct answer marked (Answer: B, or * after the option).");
+    else out.push({ q:q, options:opts, answer:ans, exp:exp });
+  });
+  return { ok: out, errs: errs };
+}
+
+function paneBulk(){
+  var sample = "Q: Which vitamin deficiency causes pernicious anemia?\nA) Vitamin B12\nB) Vitamin C\nC) Vitamin D\nD) Vitamin K\nAnswer: A\nExplanation: Lack of intrinsic factor prevents B12 absorption.\n\n1. Normal adult heart rate?\nA) 40-60\nB) 60-100 *\nC) 100-140\nD) 140-180";
+  var h = '<section class="card"><h2>Bulk add</h2><p class="muted">Paste several questions at once, with a blank line between questions. Mark the answer with an <span class="ltr">Answer: B</span> line or a * after the correct option. Rationale is optional.</p>';
+  h += '<pre class="code">'+esc(sample)+'</pre>';
+  h += '<label class="fld" for="b-cat">Topic for this batch<select id="b-cat">'+catOptions(A.cat || (A.draft.cats[0]&&A.draft.cats[0].id), false)+'</select></label>';
+  h += '<label class="fld" for="b-text">Questions<textarea id="b-text" class="ltr" style="min-height:220px">'+esc(A.bulkText||"")+'</textarea></label>';
+  h += '<div class="row"><button class="btn" id="b-prev">Check questions</button><button class="btn primary" id="b-add" disabled>Add</button></div><div id="b-out"></div></section>';
+  $("#pane").innerHTML = h;
+  var parsed = null;
+  function check(){
+    A.bulkText = $("#b-text").value;
+    parsed = parseBulk(A.bulkText);
+    var o = '';
+    if(parsed.ok.length) o += '<div class="notice ok">Ready to add: '+parsed.ok.length+' questions.</div>';
+    if(parsed.errs.length) o += '<div class="notice warn"><b>Need fixing ('+parsed.errs.length+'):</b><br>'+parsed.errs.map(esc).join("<br>")+'</div>';
+    if(!parsed.ok.length && !parsed.errs.length) o = '<p class="muted">Paste the questions first.</p>';
+    if(parsed.ok.length){ o += '<div class="list" style="margin-top:10px">'; parsed.ok.slice(0,5).forEach(function(q){ o += '<div class="item"><p class="ltr" style="font-weight:500">'+esc(q.q)+'</p><p class="ltr small" style="color:var(--good)">'+LETTERS[q.answer]+'. '+esc(q.options[q.answer])+'</p></div>'; }); if(parsed.ok.length>5) o += '<p class="small muted">And '+(parsed.ok.length-5)+' more questions.</p>'; o += '</div>'; }
+    $("#b-out").innerHTML = o;
+    var add = $("#b-add"); add.disabled = !parsed.ok.length; add.textContent = parsed.ok.length ? "Add "+parsed.ok.length+" questions" : "Add";
+  }
+  $("#b-prev").addEventListener("click", check);
+  $("#b-text").addEventListener("input", function(){ $("#b-add").disabled = true; });
+  $("#b-add").addEventListener("click", function(){
+    if(!parsed || !parsed.ok.length) return;
+    var cat = $("#b-cat").value;
+    parsed.ok.forEach(function(q){ q.id = newId("q"); q.cat = cat; A.draft.questions.push(q); });
+    A.cat = cat; A.bulkText = parsed.errs.length ? A.bulkText : "";
+    saveDraft();
+    A.msg = {t:"ok", m:"Added "+parsed.ok.length+" questions to “"+catName(A.draft,cat)+"”. Click Save & publish so players see them."+(parsed.errs.length?" Some questions in the box still need fixing.":"")};
+    renderAdmin();
+  });
+}
+
+function paneCats(){
+  var counts = {}; A.draft.questions.forEach(function(q){ counts[q.cat] = (counts[q.cat]||0)+1; });
+  var h = '<section class="card"><h2>Topics</h2><label class="fld" for="c-title">Game name<input type="text" id="c-title" value="'+esc(A.draft.title||TITLE)+'"></label><div class="list">';
+  A.draft.cats.forEach(function(c){
+    h += '<div class="item"><div class="row"><input type="text" data-car="'+esc(c.id)+'" value="'+esc(c.ar)+'" aria-label="Topic name" style="flex:1;min-width:150px"><input type="text" class="ltr" data-cen="'+esc(c.id)+'" value="'+esc(c.en||"")+'" aria-label="Subtitle (optional)" placeholder="Subtitle (optional)" style="flex:1;min-width:150px"><span class="badge num">'+(counts[c.id]||0)+' questions</span>'+
+         ((counts[c.id]||0) ? '' : '<button class="btn sm danger" data-cdel="'+esc(c.id)+'">Delete</button>')+'</div></div>';
+  });
+  h += '</div><div class="row"><input type="text" id="c-new-ar" placeholder="New topic name" style="flex:1;min-width:150px"><input type="text" id="c-new-en" class="ltr" placeholder="Subtitle (optional)" style="flex:1;min-width:150px"><select id="c-new-sec" style="flex:1;min-width:150px">'+(A.draft.secs||[]).concat([{id:"other",ar:"Other"}]).map(function(s){ return '<option value="'+esc(s.id)+'">'+esc(s.ar)+'</option>'; }).join("")+'</select><button class="btn primary" id="c-add">Add topic</button></div><p class="small muted">To delete a topic, move or delete its questions first.</p></section>';
+  $("#pane").innerHTML = h;
+  function upd(){ saveDraft(); }
+  $("#c-title").addEventListener("change", function(e){ A.draft.title = e.target.value.trim() || TITLE; upd(); renderAdmin(); });
+  $all("[data-car]").forEach(function(inp){ inp.addEventListener("change", function(){ var c = A.draft.cats.filter(function(x){ return x.id === inp.getAttribute("data-car"); })[0]; if(c && inp.value.trim()){ c.ar = inp.value.trim(); upd(); renderAdmin(); } }); });
+  $all("[data-cen]").forEach(function(inp){ inp.addEventListener("change", function(){ var c = A.draft.cats.filter(function(x){ return x.id === inp.getAttribute("data-cen"); })[0]; if(c){ c.en = inp.value.trim(); upd(); renderAdmin(); } }); });
+  $all("[data-cdel]").forEach(function(b){ b.addEventListener("click", function(){ var id = b.getAttribute("data-cdel"); A.draft.cats = A.draft.cats.filter(function(c){ return c.id !== id; }); upd(); renderAdmin(); }); });
+  $("#c-add").addEventListener("click", function(){ var ar = $("#c-new-ar").value.trim(); if(!ar){ $("#c-new-ar").focus(); return; } A.draft.cats.push({ id: newId("c"), ar: ar, en: $("#c-new-en").value.trim(), sec: $("#c-new-sec").value }); upd(); A.msg = {t:"ok", m:"Added topic “"+ar+"»."}; renderAdmin(); });
+}
+function renderAdminBarOnly(){ renderAdmin(); }
+
+function vSeed(k){ var h = 2166136261; for(var i=0;i<k.length;i++){ h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h || 1; }
+function vXor(bytes, key){ var x = vSeed(key), out = new Uint8Array(bytes.length); for(var i=0;i<bytes.length;i++){ x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; out[i] = bytes[i] ^ (x & 255); } return out; }
+function vEncode(text){ var b = vXor(new TextEncoder().encode(text), "snle-vitals-k7"), s = ""; for(var i=0;i<b.length;i+=8192) s += String.fromCharCode.apply(null, b.subarray(i, i+8192)); var b64 = btoa(s), lines = []; for(var j=0;j<b64.length;j+=120) lines.push(b64.slice(j, j+120)); return "SNLEV1\n" + lines.join("\n") + "\n"; }
+function vDecode(t){ t = String(t).replace(/^﻿/, ""); if(t.slice(0,6) !== "SNLEV1") throw new Error("not a SNLE Vitals data file"); var s = atob(t.slice(6).replace(/\s+/g, "")), b = new Uint8Array(s.length); for(var i=0;i<s.length;i++) b[i] = s.charCodeAt(i); return new TextDecoder().decode(vXor(b, "snle-vitals-k7")); }
+function bankText(b){
+  var J = function(v){ return JSON.stringify(v); };
+  return '{\n"title": ' + J(b.title) + ',\n"updated": ' + J(b.updated || "") + ',\n"secs": [\n' + (b.secs||[]).map(J).join(",\n") + '\n],\n"cats": [\n' + b.cats.map(J).join(",\n") + '\n],\n"questions": [\n' + b.questions.map(J).join(",\n") + '\n]\n}\n';
+}
+function paneBackup(){
+  var d0 = new Date(), p2 = function(n){ return (n<10?"0":"")+n; };
+  var json = bankText({ title:A.draft.title, updated: d0.getFullYear()+"-"+p2(d0.getMonth()+1)+"-"+p2(d0.getDate()), secs:A.draft.secs||[], cats:A.draft.cats, questions:A.draft.questions });
+  var h = '<section class="card"><h2>Backup</h2><p class="muted">Copy the whole question bank and save it in a file. You can paste it back here later to restore or merge it.</p><div class="row"><button class="btn primary" id="k-gh">Copy for GitHub (encrypted)</button><button class="btn" id="k-copy">Copy question bank (readable backup)</button><span class="small muted" id="k-status"></span></div><p class="small muted">For GitHub: open <span class="ltr">vitals.dat</span>, select all, paste, then Commit changes. Keep the readable backup for yourself only.</p>';
+  h += '<label class="fld" for="k-in">Import: paste a backup (JSON)<textarea id="k-in" class="ltr" style="min-height:160px"></textarea></label>';
+  h += '<div class="row"><button class="btn" id="k-merge">Merge with current questions</button><button class="btn danger" id="k-replace">Replace all questions</button></div><div id="k-out"></div></section>';
+  $("#pane").innerHTML = h;
+  $("#k-gh").addEventListener("click", function(){
+    var st = $("#k-status"), enc;
+    try{ enc = vEncode(json); }catch(e){ st.textContent = "Couldn't encrypt in this browser."; return; }
+    try{ navigator.clipboard.writeText(enc).then(function(){ st.textContent = "Encrypted bank copied ("+A.draft.questions.length+" questions). Paste it into vitals.dat on GitHub."; }, function(){ st.textContent = "Couldn't copy automatically. The encrypted text is in the box below; select and copy it."; $("#k-in").value = enc; }); }
+    catch(e){ st.textContent = "Couldn't copy automatically. The encrypted text is in the box below; select and copy it."; $("#k-in").value = enc; }
+  });
+  $("#k-copy").addEventListener("click", function(){
+    var st = $("#k-status");
+    try{ navigator.clipboard.writeText(json).then(function(){ st.textContent = "Copied "+A.draft.questions.length+" questions. Paste into a text file and save it."; }, function(){ st.textContent = "Couldn't copy automatically. Select the text in the import box and copy it manually."; $("#k-in").value = json; }); }
+    catch(e){ st.textContent = "Couldn't copy automatically. Select the text in the import box and copy it manually."; $("#k-in").value = json; }
+  });
+  function readIn(){
+    var out = $("#k-out");
+    try{
+      var raw = $("#k-in").value.trim(); if(raw.slice(0,6) === "SNLEV1") raw = vDecode(raw);
+      var d = JSON.parse(raw);
+      var qs = Array.isArray(d) ? d : d.questions;
+      if(!Array.isArray(qs)) throw new Error("x");
+      qs = qs.filter(function(q){ return q && q.q && Array.isArray(q.options) && q.options.length >= 2 && typeof q.answer === "number" && q.answer >= 0 && q.answer < q.options.length; });
+      if(!qs.length) throw new Error("x");
+      return { cats: Array.isArray(d.cats) ? d.cats : null, qs: qs, title: d.title, secs: d.secs };
+    }catch(e){ out.innerHTML = '<div class="notice warn">That is not a valid backup. Paste the text exactly as copied with Copy question bank.</div>'; return null; }
+  }
+  function ensureCats(d){
+    if(d.cats) d.cats.forEach(function(c){ if(c && c.id && !A.draft.cats.some(function(x){ return x.id === c.id; })) A.draft.cats.push({id:c.id, ar:c.ar||c.id, en:c.en||"", sec:c.sec||"other"}); });
+    d.qs.forEach(function(q){ if(!A.draft.cats.some(function(x){ return x.id === q.cat; })) q.cat = A.draft.cats[0] ? A.draft.cats[0].id : "fund"; });
+  }
+  $("#k-merge").addEventListener("click", function(){
+    var d = readIn(); if(!d) return; ensureCats(d);
+    var have = {}; A.draft.questions.forEach(function(q){ have[q.q.trim().toLowerCase()] = 1; });
+    var added = 0; d.qs.forEach(function(q){ if(!have[q.q.trim().toLowerCase()]){ q.id = newId("q"); A.draft.questions.push(q); added++; } });
+    saveDraft(); A.msg = {t:"ok", m:"Merged "+added+" new questions (duplicates skipped)."}; renderAdmin();
+  });
+  var rep = $("#k-replace"), armed = false;
+  rep.addEventListener("click", function(){
+    if(!armed){ armed = true; rep.textContent = "Click again to replace all questions"; return; }
+    var d = readIn(); if(!d) return;
+    if(d.cats && d.cats.length) A.draft.cats = d.cats.map(function(c){ return {id:c.id, ar:c.ar||c.id, en:c.en||"", sec:c.sec||"other"}; });
+    if(Array.isArray(d.secs)) A.draft.secs = d.secs;
+    ensureCats(d);
+    A.draft.questions = d.qs.map(function(q){ q.id = q.id || newId("q"); return q; });
+    if(d.title) A.draft.title = d.title;
+    saveDraft(); A.msg = {t:"ok", m:"Replaced with "+d.qs.length+" questions in the draft."}; renderAdmin();
+  });
+}
+
+function buildDoc(bank){
+  var SE = "<" + "/script>";
+  var json = JSON.stringify(bank).replace(/</g, "\\u003c");
+  return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>" + esc(TITLE) + "</title>\n" + FONTS +
+    "\n<style id=\"app-css\">" + CSS_SRC + "</style>\n</head>\n<body>\n<div id=\"app\"></div>\n<script type=\"application/json\" id=\"qbank\">" + json + SE +
+    "\n<script id=\"app-js\">" + JS_SRC + SE + "\n</body>\n</html>\n";
+}
+
+function publishBank(){
+  var btn = $("#publish");
+  if(!CAP.artifact){ A.msg = {t:"warn", m:"Publishing is not available in this view. Open the game from its page on claude.ai while signed in."}; renderAdmin(); return; }
+  var d = new Date(), pad = function(n){ return (n<10?"0":"")+n; };
+  var bank = { title: A.draft.title || TITLE, secs: A.draft.secs || [], updated: d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()), cats: A.draft.cats, questions: A.draft.questions };
+  btn.disabled = true; btn.textContent = "Publishing…";
+  Promise.resolve().then(function(){ return CAP.artifact.publish(buildDoc(bank)); }).then(function(){
+    LS.set("draft", null);
+    A.msg = {t:"ok", m:"Published. The page will now update for everyone."}; renderAdmin();
+  }).catch(function(e){
+    var code = String((e && (e.code || e.reason || e.name)) || "") + " " + String((e && e.message) || "");
+    var m;
+    if(/conflict/i.test(code)) m = "Another version was published at the same moment. Your edits are kept on this device; publish again after the page reloads.";
+    else if(/not_granted|not_writer/i.test(code)) m = "This account can't publish. Open the game with your own claude.ai account.";
+    else m = "Couldn't publish ("+code.trim()+"). Your edits are kept on this device. Try again.";
+    A.msg = {t:"warn", m:m}; renderAdmin();
+  });
+}
+
+/* ---------- boot ---------- */
+if(location.hash === "#admin") S.view = "admin";
+render();
+})();
+</script>
+<script>
+function vSeed(k){ var h = 2166136261; for(var i=0;i<k.length;i++){ h ^= k.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h || 1; }
+function vXor(bytes, key){ var x = vSeed(key), out = new Uint8Array(bytes.length); for(var i=0;i<bytes.length;i++){ x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; out[i] = bytes[i] ^ (x & 255); } return out; }
+function vEncode(text){ var b = vXor(new TextEncoder().encode(text), "snle-vitals-k7"), s = ""; for(var i=0;i<b.length;i+=8192) s += String.fromCharCode.apply(null, b.subarray(i, i+8192)); var b64 = btoa(s), lines = []; for(var j=0;j<b64.length;j+=120) lines.push(b64.slice(j, j+120)); return "SNLEV1\n" + lines.join("\n") + "\n"; }
+function vDecode(t){ t = String(t).replace(/^﻿/, ""); if(t.slice(0,6) !== "SNLEV1") throw new Error("not a SNLE Vitals data file"); var s = atob(t.slice(6).replace(/\s+/g, "")), b = new Uint8Array(s.length); for(var i=0;i<s.length;i++) b[i] = s.charCodeAt(i); return new TextDecoder().decode(vXor(b, "snle-vitals-k7")); }
+(function(){
+  var app = document.getElementById("app");
+  app.innerHTML = '<div class="wrap"><section class="card"><p class="muted">Loading questions…</p></section></div>';
+  function fail(msg){ app.innerHTML = '<div class="wrap"><section class="card"><h2>The questions could not be loaded</h2><p class="muted">' + msg + '</p></section></div>'; }
+  fetch("vitals.dat", { cache: "no-cache" }).then(function(r){
+    if(!r.ok) throw new Error("vitals.dat was not found (HTTP " + r.status + ").");
+    return r.text();
+  }).then(function(t){
+    var b;
+    try{ b = JSON.parse(vDecode(t)); }catch(e){ throw new Error("vitals.dat could not be read. Paste a fresh copy from the admin page (Copy for GitHub) and commit again."); }
+    if(!b || !Array.isArray(b.questions) || !Array.isArray(b.cats)) throw new Error("vitals.dat is missing the questions.");
+    if(!Array.isArray(b.secs)) b.secs = [];
+    document.getElementById("qbank").textContent = JSON.stringify(b);
+    var s = document.createElement("script");
+    s.textContent = document.getElementById("app-js").textContent;
+    document.body.appendChild(s);
+  }).catch(function(e){ fail(String(e && e.message || e).replace(/[<>&]/g, "")); });
+})();
+</script>
+</body>
+</html>
